@@ -10,16 +10,18 @@
 #define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-#define MIDPOINT 1900
-#define SAMPLES 256
+// Your measured idle value (DC offset) 
+#define DC_OFFSET 1900
+#define SAMPLE_RATE 8000
+#define NUM_SAMPLES 256
+#define MIC_PIN A0
+
+uint16_t samples[NUM_SAMPLES];
 
 const int button1 = 18; // GP18
 const int button2 = 28; // GP28
 
-const int micPin = A0; // ADC0 on GPIO26
-
-long sum;
-int loudness;
+int state = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -46,20 +48,29 @@ void setup() {
 }
 
 void loop() {
-  sum = 0;
+  if (digitalRead(button1) == LOW) {
+    Serial.println("START");
+    Serial.println("----------------------------------------------------");
 
-  display.setCursor(0, 0);
+    unsigned long period_us = 1000000UL / SAMPLE_RATE;
 
-  for (int i = 0; i < SAMPLES; i++) 
-  {
-    sum += abs(analogRead(micPin) - MIDPOINT);
+    // Keep recording while button is held
+    while (digitalRead(button1) == LOW) {
+
+      // Collect one block of samples
+      for (int i = 0; i < NUM_SAMPLES; i++) {
+        unsigned long t0 = micros();
+        samples[i] = analogRead(MIC_PIN);
+        while (micros() - t0 < period_us);
+      }
+
+      // Send the block
+      for (int i = 0; i < NUM_SAMPLES; i++) {
+        int16_t centered = (int16_t)samples[i] - DC_OFFSET; 
+        Serial.println(centered);
+      }
+    }
+    Serial.println("----------------------------------------------------");
+    Serial.println("END");
   }
-
-  loudness = sum / SAMPLES;
-  if (loudness < 0) loudness = 0;
-  display.clearDisplay();
-  display.print(loudness);
-
-  display.display();
-  delay(300);
 }
