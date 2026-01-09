@@ -16,6 +16,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 #define NUM_SAMPLES 256
 #define MIC_PIN A0
 
+#define LONG_PRESS_TIME 3000  // milliseconds
+
 uint16_t samples[NUM_SAMPLES];
 
 const int button1 = 18; // GP18
@@ -34,8 +36,10 @@ void setup() {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
-  
-  display.clearDisplay();
+
+  delay(200);
+  display.clearDisplay(); 
+  display.display();
 
   pinMode(button1, INPUT_PULLUP);
   pinMode(button2, INPUT_PULLUP);
@@ -48,10 +52,9 @@ void setup() {
 }
 
 void loop() {
+
   if (digitalRead(button1) == LOW) {
     Serial.println("START");
-    Serial.println("----------------------------------------------------");
-
     unsigned long period_us = 1000000UL / SAMPLE_RATE;
 
     // Keep recording while button is held
@@ -70,7 +73,55 @@ void loop() {
         Serial.println(centered);
       }
     }
-    Serial.println("----------------------------------------------------");
     Serial.println("END");
   }
+  if (digitalRead(button2) == LOW) {
+
+    // Debounce press
+    delay(30);
+    if (digitalRead(button2) != LOW) return;
+
+    unsigned long pressStart = millis();
+
+    // Stay here while button is held
+    while (digitalRead(button2) == LOW) {
+
+        // Long press reached
+        if (millis() - pressStart >= LONG_PRESS_TIME) {
+            // Debounce long press
+            delay(50);
+            if (digitalRead(button2) == LOW) {
+                watchdog_reboot(0, 0, 0);
+                while (1);
+            }
+        }
+
+        delay(10); // stabilize sampling
+    }
+
+    // Debounce release
+    delay(30);
+    if (digitalRead(button2) == LOW) return;
+
+    // Short press
+    unsigned long pressDuration = millis() - pressStart;
+
+    if (pressDuration < LONG_PRESS_TIME) 
+    {
+      if (Serial.available()) 
+      { 
+        String msg = Serial.readStringUntil('\n'); 
+        msg.trim(); 
+        if (msg.length() > 0) 
+        { 
+          float f0 = msg.toFloat();  
+          display.setCursor(0,0); 
+          display.print("F0: "); 
+          display.println(f0);
+          display.display();
+        } 
+      }
+    }
+  }
 }
+
