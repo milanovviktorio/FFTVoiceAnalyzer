@@ -24,6 +24,8 @@ const int button1 = 18; // GP18
 const int button2 = 28; // GP28
 
 int state = 0;
+float f0 = NAN, RMSEnergy = 0, zcr = 0, centroid = 0;
+String type = "UNKNOWN";
 
 void setup() {
   Serial.begin(115200);
@@ -108,20 +110,89 @@ void loop() {
 
     if (pressDuration < LONG_PRESS_TIME) 
     {
-      if (Serial.available()) 
-      { 
-        String msg = Serial.readStringUntil('\n'); 
-        msg.trim(); 
-        if (msg.length() > 0) 
-        { 
-          float f0 = msg.toFloat();  
-          display.setCursor(0,0); 
-          display.print("F0: "); 
-          display.println(f0);
-          display.display();
-        } 
-      }
+      state++;
+      delay(200);
     }
+  }
+  if (Serial.available()) 
+  { 
+    String msg = Serial.readStringUntil('\n'); 
+    msg.trim(); 
+    parseLine(msg);
+  }
+  if (state>4)
+  {
+    state = 0;
+  }
+  displayOnOLED();
+}
+
+void parseLine(String s) {
+  int idx = 0;
+  while (true) {
+    int comma = s.indexOf(',', idx);
+    if (comma == -1) break;
+
+    String key = s.substring(idx, comma);
+    idx = comma + 1;
+
+    comma = s.indexOf(',', idx);
+    if (comma == -1) comma = s.length();
+
+    String val = s.substring(idx, comma);
+    idx = comma + 1;
+
+    if (key == "F0") f0 = val.toFloat();
+    else if (key == "RMSENERGY") RMSEnergy = val.toFloat();
+    else if (key == "ZCR") zcr = val.toFloat();
+    else if (key == "CENTROID") centroid = val.toFloat();
+    else if (key == "TYPE") type = val;
   }
 }
 
+void displayOnOLED()
+{
+  switch (state)
+  {
+    case 0:
+      display.clearDisplay();
+      display.setCursor(0,0); 
+      display.print("TYPE: ");
+      display.setCursor(0,16);  
+      display.println(type);
+      display.display();
+      break;
+    case 1:
+      display.clearDisplay();
+      display.setCursor(0,0); 
+      display.print("F0: "); 
+      display.setCursor(0,16);  
+      display.println(f0);
+      display.display();
+      break;
+    case 2:
+      display.clearDisplay();
+      display.setCursor(0,0); 
+      display.print("RMSENERGY: "); 
+      display.setCursor(0,16);  
+      display.println(RMSEnergy);
+      display.display();
+      break;
+    case 3:
+      display.clearDisplay();
+      display.setCursor(0,0); 
+      display.print("ZCR: "); 
+      display.setCursor(0,16);  
+      display.println(zcr);
+      display.display();
+      break;
+    case 4:
+      display.clearDisplay();
+      display.setCursor(0,0); 
+      display.print("CENTROID: "); 
+      display.setCursor(0,16);  
+      display.println(centroid);
+      display.display();
+      break;
+  }
+}
